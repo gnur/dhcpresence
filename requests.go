@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/cookiejar"
-
-	"golang.org/x/net/publicsuffix"
 )
 
 const API_ENDPOINT = "http://modem.uranus.aawa.nl/ws/NeMo/Intf/lan:getMIBs"
@@ -32,11 +29,6 @@ type authRequest struct {
 }
 
 func getDevices() ([]Device, error) {
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	if err != nil {
-		return nil, fmt.Errorf("unable to create cookiejar: %w", err)
-	}
-
 	authReq := authRequest{
 		Service: "sah.Device.Information",
 		Method:  "createContext",
@@ -63,11 +55,7 @@ func getDevices() ([]Device, error) {
 	req.Header.Set("Authorization", "X-Sah-Login")
 	req.Header.Set("Content-Type", "application/x-sah-ws-4-call+js; charset=utf-8")
 
-	client := &http.Client{
-		Jar: jar,
-	}
-
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to complete request: %w", err)
 	}
@@ -84,19 +72,16 @@ func getDevices() ([]Device, error) {
 	req, err = http.NewRequest("POST", API_ENDPOINT, devicesBody)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create request: %w", err)
-		// handle err
 	}
 	req.Header.Set("X-Context", authResp.Data.ContextID)
 	req.Header.Set("Cookie", resp.Header.Get("set-cookie"))
 
-	resp, err = client.Do(req)
+	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
-		// handle err
 		return nil, fmt.Errorf("unable to get ips: %w", err)
 	}
 	defer resp.Body.Close()
 
-	//parse body to get ips
 	var ipsResp DeviceResp
 	err = json.NewDecoder(resp.Body).Decode(&ipsResp)
 	if err != nil {
@@ -104,12 +89,4 @@ func getDevices() ([]Device, error) {
 	}
 
 	return ipsResp.Status, nil
-}
-
-type Payload struct {
-	Service    string     `json:"service"`
-	Method     string     `json:"method"`
-	Parameters Parameters `json:"parameters"`
-}
-type Parameters struct {
 }

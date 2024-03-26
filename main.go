@@ -4,9 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/asdine/storm"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/sirupsen/logrus"
 )
 
 type config struct {
@@ -18,12 +16,12 @@ type config struct {
 }
 
 func main() {
-	logger := logrus.WithField("source", "dhcpresence")
 
 	var cfg config
 	err := envconfig.Process("dh", &cfg)
 	if err != nil {
-		logger.WithError(err).Fatal("Failed to parse env")
+		slog.Error("Failed to parse env", "error", err)
+		return
 	}
 
 	slog.Info("Starting dhcpresence")
@@ -34,25 +32,8 @@ func main() {
 	}
 
 	for _, device := range devices {
-		if device.Active {
-			slog.Info("Device found", "device", device.Name, "active", device.Active)
+		if !device.Active {
+			slog.Info("Device found", "device", device.Name, "active", device.Active, "lastSeen", device.LastConnection.In(time.Local))
 		}
 	}
-
-	return
-
-	db, err := storm.Open(cfg.Database)
-	defer func() {
-		err := db.Set("timestamps", "last_run", time.Now())
-		if err != nil {
-			logger.WithError(err).Error("Failed to store last run")
-		}
-
-		db.Close()
-	}()
-
-	if err != nil {
-		logger.WithError(err).WithField("path", cfg.Database).Fatal("could not open database")
-	}
-
 }
